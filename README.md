@@ -70,9 +70,9 @@ Functions `Load` (lines 38-59) and `Save` (lines 61-86) leverage [json.hpp](src/
 
 The file contains the following values of PID controller parameters which allow the car to drive within the drivable area of the track:
 
-|                | P    | I       | D    |
-|----------------|:----:|:-------:|:----:|
-| Parameter name | 0.19 | 0.00084 | 4.92 |
+| P    | I       | D    |
+|:----:|:-------:|:----:|
+| 0.19 | 0.00084 | 4.92 |
 
 Function `UpdateError` (lines 98-114) increases the running sum of the driving error `sumError_` which is computed as
 
