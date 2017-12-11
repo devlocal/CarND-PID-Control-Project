@@ -1,11 +1,12 @@
 #include <uWS/uWS.h>
-#include <iostream>
 #include "json.hpp"
 #include "PID.h"
-#include <math.h>
+#include "twiddle.h"
 
 // for convenience
 using json = nlohmann::json;
+
+constexpr bool kDebugOutput = false;
 
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
@@ -33,39 +34,60 @@ int main()
   uWS::Hub h;
 
   PID pid;
-  // TODO: Initialize the pid variable.
+  Twiddle twiddle;
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  // Initialize the pid variable.
+  pid.Init(twiddle.GetParam(0), twiddle.GetParam(1), twiddle.GetParam(2));
+
+  h.onMessage([&pid, &twiddle](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
-    if (length && length > 2 && data[0] == '4' && data[1] == '2')
+    if (length > 2 && data[0] == '4' && data[1] == '2')
     {
       auto s = hasData(std::string(data).substr(0, length));
-      if (s != "") {
+      if (!s.empty()) {
         auto j = json::parse(s);
         std::string event = j[0].get<std::string>();
         if (event == "telemetry") {
           // j[1] is the data JSON object
           double cte = std::stod(j[1]["cte"].get<std::string>());
-          double speed = std::stod(j[1]["speed"].get<std::string>());
-          double angle = std::stod(j[1]["steering_angle"].get<std::string>());
-          double steer_value;
           /*
-          * TODO: Calcuate steering value here, remember the steering value is
-          * [-1, 1].
-          * NOTE: Feel free to play around with the throttle and speed. Maybe use
-          * another PID controller to control the speed!
+          * Calculate steering value here, the steering value is [-1, 1].
           */
-          
-          // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+
+          // Update PID error and get new steering angle
+          pid.UpdateError(cte);
+          double steer_value = pid.GetControlValue();
+
+          // Update twiddle algorithm with new error and steering angle
+          twiddle.UpdateError(cte, steer_value);
+          if (twiddle.CheckTerminate()) {
+            // Terminate the application for the next twiddle iteration
+            std::cout << "Terminating to update twiddle values." << std::endl;
+            ws.close(-1);
+          }
+
+          // Bring steering angle into [-1, 1] range
+          if (steer_value > 1) {
+            steer_value = 1;
+          }
+          if (steer_value < -1) {
+            steer_value = -1;
+          }
+
+          if (kDebugOutput) {
+            // DEBUG
+            std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+          }
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = 0.3;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          if (kDebugOutput) {
+            std::cout << msg << std::endl;
+          }
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {

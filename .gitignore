@@ -1,4 +1,7 @@
 .vscode
-build
+build/*
+!twiddle.json
 tags
 .editorconfig
+.idea
+cmake-build-debug
